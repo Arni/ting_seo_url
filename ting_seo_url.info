@@ -1,0 +1,10 @@
+name = Ting Seo url
+description = Makes a seo friendly url on object pages
+package = Ding!
+version = "7.x-1.x-dev"
+core = 7.x
+dependencies[] = ting
+dependencies[] = ting_fulltext
+
+
+

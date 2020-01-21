@@ -1,0 +1,96 @@
+<?php
+
+/**
+ * @file
+ * Ting seo url module main file.
+ */
+
+
+/**
+ * Implements hook_ding_entity_view().
+ */
+function ting_seo_url_ding_entity_view($object, $view_mode) {
+  $entity_path = entity_uri('ting_object', $object)['path'];
+  // The page parametes for the ting object view should only be added on the
+  // full page view for the material.
+  if ($view_mode == 'full' && current_path() == $entity_path) {
+    $urlAlias = drupal_lookup_path('alias',current_path());
+    //file_put_contents("/var/www/drupal7vm/drupal/debug/path4.txt", print_r($urlAlias , TRUE), FILE_APPEND);
+
+    if ($urlAlias == '') {
+      $title = ting_seo_url_get_title($object);
+      $type = ting_seo_url_get_type($object);
+      $creator = ting_seo_url_get_creator($object);
+      $subject = ting_seo_url_get_subject($object);
+      if (!empty($type) && !empty($title)) {
+        $new_url = $type . $subject . $creator . $title . '/full';
+        //file_put_contents("/var/www/drupal7vm/drupal/debug/path6.txt", print_r($new_url, TRUE), FILE_APPEND);
+        $path = array("source" => $entity_path, "alias" => $new_url);
+        path_save($path);
+      }
+    }
+  }
+}
+
+function ting_seo_url_get_type($object) {
+  $type= $object->getType();
+  // We don't the parts with a '(' off a type. Eg. lydbog(net) becomes lydbog.
+  $part = explode('(', $type);
+  return ting_seo_url_format_string(strtolower($part[0]));
+}
+
+function ting_seo_url_get_title($object) {
+  $title = $object->getTitle();
+  return '/' . ting_seo_url_format_string($title);
+}
+
+function ting_seo_url_get_creator($object) {
+  $creators = $object->getCreators();
+  if (isset($creators) && !empty($creators)) {
+    $part = explode('(', $creators[0]); // We don't want the year part.
+    return '/' . ting_seo_url_format_string($part[0]);
+  }
+  return '';
+}
+
+function ting_seo_url_get_subject($object) {
+  $subject = null;
+  $subjects = $object->getSubjects();
+  $genre = $object->reply->getGenre();
+  $dk5_text = $object->reply->getDk5Text();
+  
+  if (isset($genre) && !empty($genre)) {
+    $subject = $genre[0];
+    //file_put_contents("/var/www/drupal7vm/drupal/debug/path21.txt", print_r($genre  , TRUE), FILE_APPEND);
+  } elseif (isset($dk5_text) && !empty($dk5_text)) {
+    $subject = $dk5_text[0];
+  } elseif (isset($subjects) && !empty($subjects)) {
+    $subject = $subjects[0];
+  } else {
+    return '';
+  }
+  //file_put_contents("/var/www/drupal7vm/drupal/debug/path22.txt", print_r($subject  , TRUE), FILE_APPEND);
+  return '/' . ting_seo_url_format_string($subject);
+}
+
+function ting_seo_url_format_string($string) {
+  $formatted_string = str_replace(' ', '_', trim($string));
+  $formatted_string = str_replace('_:_', '-', $formatted_string);
+  $formatted_string = str_replace(',', '', $formatted_string);
+  $encoded_string = rawurlencode($formatted_string);
+  // We won't to display correct danish chars in the url so we put them in again.
+  $danish_char = array (
+    '%C3%86' => 'Æ',
+    '%C3%85' => 'Å', 
+    '%C3%98' => 'Ø', 
+    '%C3%A6' => 'æ', 
+    '%C3%A5' => 'å', 
+    '%C3%B8' => 'ø',
+  );
+  
+  foreach ($danish_char as $key => $value) {
+    $encoded_string = str_replace($key, $value, $encoded_string);
+  }
+  //file_put_contents("/var/www/drupal7vm/drupal/debug/path14.txt", print_r($encoded_string, TRUE), FILE_APPEND);
+  return $encoded_string;
+}
