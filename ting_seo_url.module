@@ -4,7 +4,18 @@
  * @file
  * Ting seo url module main file.
  */
+use OpenSearch\OpenSearchTingObject;
 
+function ting_seo_url_menu() {
+  $items = array();
+  $items['ting/seourl'] = array(
+    'title' => 'Retrieves review off the object',
+    'page callback' => 'ting_seo_url_bulk_update',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
 
 /**
  * Implements hook_ding_entity_view().
@@ -15,20 +26,26 @@ function ting_seo_url_ding_entity_view($object, $view_mode) {
   // full page view for the material.
   if ($view_mode == 'full' && current_path() == $entity_path) {
     $urlAlias = drupal_lookup_path('alias',current_path());
-    //file_put_contents("/var/www/drupal7vm/drupal/debug/path4.txt", print_r($urlAlias , TRUE), FILE_APPEND);
-
     if ($urlAlias == '') {
-      $title = ting_seo_url_get_title($object);
-      $type = ting_seo_url_get_type($object);
-      $creator = ting_seo_url_get_creator($object);
-      $subject = ting_seo_url_get_subject($object);
-      if (!empty($type) && !empty($title)) {
-        $new_url = $type . $subject . $creator . $title . '/full';
-        //file_put_contents("/var/www/drupal7vm/drupal/debug/path6.txt", print_r($new_url, TRUE), FILE_APPEND);
-        $path = array("source" => $entity_path, "alias" => $new_url);
-        path_save($path);
-      }
+      ting_seo_url_save_alias($object);
     }
+  }
+}
+
+function ting_seo_url_save_alias($object) {
+  $entity_path = 'ting/object/' . $object->reply->getId();
+  $title = ting_seo_url_get_title($object);
+  $type = ting_seo_url_get_type($object);
+  $creator = ting_seo_url_get_creator($object);
+  $subject = ting_seo_url_get_subject($object);
+  if (!empty($type) && !empty($title)) {
+    $new_url = $type . $subject . $creator . $title . '/full';
+    if (strlen($new_url) > 100) {
+      $new_url = substr($new_url, 0, 100);
+    }
+    $path = array("source" => $entity_path, "alias" => $new_url);
+    file_put_contents("/var/www/drupal7vm/drupal/debug/path1.txt", print_r($path, TRUE), FILE_APPEND);
+    path_save($path);
   }
 }
 
@@ -63,14 +80,14 @@ function ting_seo_url_get_subject($object) {
     $subject = $genre[0];
     //file_put_contents("/var/www/drupal7vm/drupal/debug/path21.txt", print_r($genre  , TRUE), FILE_APPEND);
   } elseif (isset($dk5_text) && !empty($dk5_text)) {
-    $subject = $dk5_text[0];
+    $subject = str_replace('.', '', $dk5_text[0]);
   } elseif (isset($subjects) && !empty($subjects)) {
     $subject = $subjects[0];
   } else {
     return '';
   }
   //file_put_contents("/var/www/drupal7vm/drupal/debug/path22.txt", print_r($subject  , TRUE), FILE_APPEND);
-  return '/' . ting_seo_url_format_string($subject);
+  return '/' . ting_seo_url_format_string(strtolower($subject));
 }
 
 function ting_seo_url_format_string($string) {
@@ -91,6 +108,56 @@ function ting_seo_url_format_string($string) {
   foreach ($danish_char as $key => $value) {
     $encoded_string = str_replace($key, $value, $encoded_string);
   }
-  //file_put_contents("/var/www/drupal7vm/drupal/debug/path14.txt", print_r($encoded_string, TRUE), FILE_APPEND);
   return $encoded_string;
 }
+
+function ting_seo_url_bulk_update() {
+   ting_seo_url_multisearch('bad>="NOW-2DAYS" and facet.acSource="bibliotekskatalog"', 1);
+}
+
+function ting_seo_url_multisearch($query, $start) {
+  $multi_request = new TingClientMultiRequestAdapter();
+  $req = array();
+  
+  for ($i = $start; $i <= 500; $i +=50) {
+    $request = opensearch_get_request_factory()->getSearchRequest();   
+
+    $request->setQuery($query . ' and holdingsitem.agencyid=' . variable_get('ting_agency', '773000'));
+    if ($agency = variable_get('ting_agency', FALSE)) {
+      $request->setAgency($agency);
+    }
+    $request->setStart($i);
+    $request->setNumResults(50);
+
+    $request->setProfile('opac');
+    $req[] = $request;
+  }
+  $startTime = explode(' ', microtime());
+  $results = $multi_request->execute($req);
+  file_put_contents("/var/www/drupal7vm/drupal/debug/multi1.txt", print_r($results, TRUE), FILE_APPEND);
+  
+  $res = array();
+  $i = 0;
+  foreach ($results as $result) {
+    $response = $req[$i]->parseResponse($result);
+    file_put_contents("/var/www/drupal7vm/drupal/debug/multi2.txt", print_r($response, TRUE), FILE_APPEND);
+    foreach ($response->collections as $collection) {
+       foreach ($collection->objects as $object) {
+          $opensearch_object = new OpenSearchTingObject($object);
+          file_put_contents("/var/www/drupal7vm/drupal/debug/multi4.txt", print_r($opensearch_object, TRUE), FILE_APPEND);
+          file_put_contents("/var/www/drupal7vm/drupal/debug/multi5.txt", print_r($opensearch_object->getId(), TRUE), FILE_APPEND);
+          $ting_object = new TingEntity();
+          $ting_object->reply = $opensearch_object;
+          file_put_contents("/var/www/drupal7vm/drupal/debug/multi6.txt", print_r($ting_object, TRUE), FILE_APPEND);
+          ting_seo_url_save_alias($ting_object);
+       }
+    }
+  }
+  //file_put_contents("/var/www/drupal7vm/drupal/debug/exp9.txt", print_r($res, TRUE), FILE_APPEND);
+  //return $res;
+          $stopTime = explode(' ', microtime());
+        $time = floatval(($stopTime[1]+$stopTime[0]) - ($startTime[1]+$startTime[0]));
+  print 'finished';
+  print $time;
+}
+

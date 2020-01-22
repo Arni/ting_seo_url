@@ -5,6 +5,8 @@ version = "7.x-1.x-dev"
 core = 7.x
 dependencies[] = ting
 dependencies[] = ting_fulltext
+dependencies[] = curl_multi
+files[]=lib/TingClientMultiRequestAdapter.php
 
 
 
