@@ -38,13 +38,13 @@ function ting_seo_url_save_alias($object) {
   $type = ting_seo_url_get_type($object);
   $creator = ting_seo_url_get_creator($object);
   $subject = ting_seo_url_get_subject($object);
+  $id = $object->getId();
   if (!empty($type) && !empty($title)) {
     if (strlen($title) > 100) {
       $title = substr($title, 0, 100);
     }
-    $new_url = $type . $subject . $creator . $title . '/full';
+    $new_url = $type . $subject . $creator . $title . '/full/' . $id;
     $path = array("source" => $entity_path, "alias" => $new_url);
-    file_put_contents("/var/www/drupal7vm/drupal/debug/path1.txt", print_r($path, TRUE), FILE_APPEND);
     path_save($path);
   }
 }
@@ -132,32 +132,20 @@ function ting_seo_url_multisearch($query, $start) {
     $request->setProfile('opac');
     $req[] = $request;
   }
-  $startTime = explode(' ', microtime());
+
   $results = $multi_request->execute($req);
-  file_put_contents("/var/www/drupal7vm/drupal/debug/multi1.txt", print_r($results, TRUE), FILE_APPEND);
-  
   $res = array();
   $i = 0;
   foreach ($results as $result) {
     $response = $req[$i]->parseResponse($result);
-    file_put_contents("/var/www/drupal7vm/drupal/debug/multi2.txt", print_r($response, TRUE), FILE_APPEND);
     foreach ($response->collections as $collection) {
        foreach ($collection->objects as $object) {
           $opensearch_object = new OpenSearchTingObject($object);
-          file_put_contents("/var/www/drupal7vm/drupal/debug/multi4.txt", print_r($opensearch_object, TRUE), FILE_APPEND);
-          file_put_contents("/var/www/drupal7vm/drupal/debug/multi5.txt", print_r($opensearch_object->getId(), TRUE), FILE_APPEND);
           $ting_object = new TingEntity();
           $ting_object->reply = $opensearch_object;
-          file_put_contents("/var/www/drupal7vm/drupal/debug/multi6.txt", print_r($ting_object, TRUE), FILE_APPEND);
           ting_seo_url_save_alias($ting_object);
        }
     }
   }
-  //file_put_contents("/var/www/drupal7vm/drupal/debug/exp9.txt", print_r($res, TRUE), FILE_APPEND);
-  //return $res;
-          $stopTime = explode(' ', microtime());
-        $time = floatval(($stopTime[1]+$stopTime[0]) - ($startTime[1]+$startTime[0]));
-  print 'finished';
-  print $time;
 }
 
